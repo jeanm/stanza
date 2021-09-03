@@ -118,7 +118,20 @@ class LSTMModel(BaseModel, nn.Module):
         self.register_buffer('transition_zeros', torch.zeros(self.num_layers, 1, self.transition_hidden_size))
         self.register_buffer('constituent_zeros', torch.zeros(self.num_layers, 1, self.hidden_size))
 
-        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True)
+
+        self.attention_heads = self.args['attention_heads']
+        if self.attention_heads > 0:
+            self.attention_dim = self.args['attention_dim']
+            self.total_attention_dim = self.attention_heads * self.attention_dim
+            self.attention_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.total_attention_dim, num_layers=1, bidirectional=True)
+            # will transform word input as both Q and K
+            # V will be untransformed after the lstm (adding the forward & backward pieces)
+            self.attention_input = nn.Linear(self.total_attention_dim * 2, self.total_attention_dim)
+            self.attention = nn.MultiheadAttention(self.total_attention_dim, self.attention_heads)
+            self.word_lstm = nn.LSTM(input_size=self.total_attention_dim+self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True)
+        else:
+            self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True)
+
         # after putting the word_delta_tag input through the word_lstm, we get back
         # hidden_size * 2 output with the front and back lstms concatenated.
         # this transforms it into hidden_size with the values mixed together
@@ -214,6 +227,14 @@ class LSTMModel(BaseModel, nn.Module):
             # now of size sentence x 1 x input
             word_input = word_input.unsqueeze(1)
             word_input = self.word_dropout(word_input)
+
+            if self.attention_heads > 0:
+                attn_input, _ = self.attention_lstm(word_input)
+                query = self.attention_input(attn_input)
+                value = attn_input[:, :, :self.total_attention_dim] + attn_input[:, :, self.total_attention_dim:]
+                attn_output, _ = self.attention(query, query, value)
+                word_input = torch.cat([word_input, attn_output], axis=2)
+
             outputs, _ = self.word_lstm(word_input)
             # now sentence x hidden_size
             outputs = self.word_to_constituent(outputs)

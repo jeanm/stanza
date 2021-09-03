@@ -82,6 +82,8 @@ class Trainer:
         if 'transition_scheme' not in params['config']:
             # the only models we saved so far are ones with TOP_DOWN
             params['config']['transition_scheme'] = TransitionScheme.TOP_DOWN
+        if 'attention_heads' not in params['config']:
+            params['config']['attention_heads'] = 0
 
         if model_type == 'LSTM':
             model = LSTMModel(pretrain=pt,

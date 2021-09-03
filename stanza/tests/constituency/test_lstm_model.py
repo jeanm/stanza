@@ -154,12 +154,16 @@ def test_lstm_forward(pt):
 
 def test_multiple_output_forward(pt):
     """
-    Test a couple different sizes of output layers
+    test different output layer sizes
     """
     model = build_model(pt, '--num_output_layers', '1', '--num_lstm_layers', '2')
     run_forward_checks(model)
 
     model = build_model(pt, '--num_output_layers', '2', '--num_lstm_layers', '2')
+    run_forward_checks(model)
+
+def test_attention_forward(pt):
+    model = build_model(pt, '--attention_heads', '2')
     run_forward_checks(model)
 
 def test_forward_con_lstm(pt):
