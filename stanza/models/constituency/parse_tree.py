@@ -33,6 +33,12 @@ class Tree(StanzaObject):
         return len(self.children) == 1 and len(self.children[0].children) == 0
 
     def yield_reversed_preterminals(self):
+        """
+        Yield the preterminals one at a time in BACKWARDS order
+
+        This is done reversed as it is a frequently used method in the
+        parser, so this is a tiny optimization
+        """
         nodes = deque()
         nodes.append(self)
         while len(nodes) > 0:
@@ -43,6 +49,9 @@ class Tree(StanzaObject):
                 yield node
             else:
                 nodes.extend(node.children)
+
+    def preterminals(self):
+        return list(reversed(list(self.yield_reversed_preterminals())))
 
     def __repr__(self):
         """
