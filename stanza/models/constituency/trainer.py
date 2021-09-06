@@ -469,7 +469,8 @@ def build_batch_from_tagged_words(batch_size, data_iterator, model):
             break
         tree_batch.append(sentence)
 
-    tree_batch = parse_transitions.initial_state_from_words(tree_batch, model)
+    if len(tree_batch) > 0:
+        tree_batch = parse_transitions.initial_state_from_words(tree_batch, model)
     return tree_batch
 
 def parse_sentences(data_iterator, build_batch_fn, batch_size, model):
