@@ -60,6 +60,7 @@ import os
 
 import torch
 
+from stanza import Pipeline
 from stanza.models.common import utils
 from stanza.models.constituency import trainer
 from stanza.models.constituency.parse_transitions import TransitionScheme
@@ -181,6 +182,9 @@ def parse_args(args=None):
     parser.add_argument('--maybe_finetune', action='store_true', help='Load existing model during `train` mode from `load_name` path if it exists.  Useful for running in situations where a job is frequently being preempted')
     parser.add_argument('--load_name', type=str, default=None, help='Model to load when finetuning, evaluating, or manipulating an existing file')
 
+    parser.add_argument('--retag_package', default=None, help='Which tagger shortname to use when retagging trees.  None for no retagging.  Retagging is recommended, as gold tags will not be available at pipeline time')
+    parser.add_argument('--retag_method', default='xpos', choices=['xpos', 'upos'], help='Which tags to use when retagging')
+
     args = parser.parse_args(args=args)
     if not args.lang and args.shorthand and len(args.shorthand.split("_")) == 2:
         args.lang = args.shorthand.split("_")[0]
@@ -190,6 +194,14 @@ def parse_args(args=None):
         args.learning_rate = DEFAULT_LEARNING_RATES.get(args.optim.lower(), None)
 
     args = vars(args)
+
+    if args['retag_method'] == 'xpos':
+        args['retag_xpos'] = True
+    elif args['retag_method'] == 'upos':
+        args['retag_xpos'] = False
+    else:
+        raise ValueError("Unknown retag method {}".format(xpos))
+
     return args
 
 def main(args=None):
@@ -218,10 +230,20 @@ def main(args=None):
     elif args['mode'] == 'train' and args['save_latest_name']:
         model_load_file = model_save_latest_file
 
+    if args['retag_package'] is not None:
+        if '_' in args['retag_package']:
+            lang, package = args['retag_package'].split('_', 1)
+            retag_pipeline = Pipeline(lang=lang, processors="tokenize, pos", tokenize_pretokenized=True, pos_package=package, pos_tqdm=True)
+        else:
+            lang = args['retag_package']
+            retag_pipeline = Pipeline(lang=lang, processors="tokenize, pos", tokenize_pretokenized=True, pos_tqdm=True)
+    else:
+        retag_pipeline = None
+
     if args['mode'] == 'train':
-        trainer.train(args, model_save_file, model_load_file, model_save_latest_file)
+        trainer.train(args, model_save_file, model_load_file, model_save_latest_file, retag_pipeline)
     elif args['mode'] == 'predict':
-        trainer.evaluate(args, model_load_file)
+        trainer.evaluate(args, model_load_file, retag_pipeline)
     elif args['mode'] == 'remove_optimizer':
         trainer.remove_optimizer(args, model_save_file, model_load_file)
 

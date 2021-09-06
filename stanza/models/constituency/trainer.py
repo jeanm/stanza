@@ -28,6 +28,7 @@ from stanza.models.constituency import transition_sequence
 from stanza.models.constituency import tree_reader
 from stanza.models.constituency.lstm_model import LSTMModel
 from stanza.models.constituency.parse_transitions import State, TransitionScheme
+from stanza.models.constituency.utils import retag_trees
 from stanza.server.parser_eval import EvaluateParser
 
 tqdm = utils.get_tqdm()
@@ -184,8 +185,11 @@ def verify_transitions(trees, sequences, transition_scheme):
         if tree != result:
             raise RuntimeError("Transition sequence did not match for a tree!\nOriginal tree:{}\nTransitions: {}\nResult tree:{}".format(tree, sequence, result))
 
-def evaluate(args, model_file):
+def evaluate(args, model_file, retag_pipeline):
     """
+    Loads the given model file and tests the eval_file treebank.
+
+    May retag the trees using retag_pipeline
     Uses a subprocess to run the Java EvalB code
     """
     pt = load_pretrain(args)
@@ -195,6 +199,11 @@ def evaluate(args, model_file):
 
     treebank = read_treebank(args['eval_file'])
     logger.info("Read %d trees for evaluation", len(treebank))
+
+    if retag_pipeline is not None:
+        logger.info("Retagging trees using the %s tags from the %s package...", args['retag_method'], args['retag_package'])
+        treebank = retag_trees(treebank, retag_pipeline, args['retag_xpos'])
+        logger.info("Retagging finished")
 
     f1 = run_dev_set(trainer.model, treebank, args['eval_batch_size'], args['eval_file'])
     logger.info("F1 score on %s: %f", args['eval_file'], f1)
@@ -240,7 +249,7 @@ def remove_optimizer(args, model_save_file, model_load_file):
     trainer = Trainer.load(model_load_file, pt, forward_charlm, backward_charlm, use_gpu=False, load_optimizer=False)
     trainer.save(model_save_file)
 
-def train(args, model_save_file, model_load_file, model_save_latest_file):
+def train(args, model_save_file, model_load_file, model_save_latest_file, retag_pipeline):
     """
     Build a model, train it using the requested train & dev files
     """
@@ -253,6 +262,12 @@ def train(args, model_save_file, model_load_file, model_save_latest_file):
 
     dev_trees = read_treebank(args['eval_file'])
     logger.info("Read %d trees for the dev set", len(dev_trees))
+
+    if retag_pipeline is not None:
+        logger.info("Retagging trees using the %s tags from the %s package...", args['retag_method'], args['retag_package'])
+        train_trees = retag_trees(train_trees, retag_pipeline, args['retag_xpos'])
+        dev_trees = retag_trees(dev_trees, retag_pipeline, args['retag_xpos'])
+        logger.info("Retagging finished")
 
     train_constituents = parse_tree.Tree.get_unique_constituent_labels(train_trees)
     dev_constituents = parse_tree.Tree.get_unique_constituent_labels(dev_trees)
@@ -283,6 +298,7 @@ def train(args, model_save_file, model_load_file, model_save_latest_file):
             raise RuntimeError("Found root state {} in the dev set which is not a ROOT state in the train set".format(root_state))
 
     tags = parse_tree.Tree.get_unique_tags(train_trees)
+    logger.info("Unique tags in training set: %s", tags)
     for tag in parse_tree.Tree.get_unique_tags(dev_trees):
         if tag not in tags:
             raise RuntimeError("Found tag {} in the dev set which is not a tag in the train set".format(tag))
