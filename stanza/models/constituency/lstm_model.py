@@ -96,7 +96,7 @@ class LSTMModel(BaseModel, nn.Module):
         else:
             self.forward_charlm = None
         if backward_charlm is not None:
-            self.add_unsaved_module('backward_charlm', forward_charlm)
+            self.add_unsaved_module('backward_charlm', backward_charlm)
             self.add_unsaved_module('backward_charlm_vocab', backward_charlm.char_vocab())
             self.word_input_size += self.backward_charlm.hidden_dim()
         else:
