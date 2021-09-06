@@ -313,7 +313,7 @@ class LSTMModel(BaseModel, nn.Module):
             sentence_output = word_output[:len(tagged_words), sentence_idx, :]
             sentence_output = self.word_to_constituent(sentence_output)
             sentence_output = self.nonlinearity(sentence_output)
-            word_queue = TreeStack(value=WordNode(None, self.zeros, self.zeros))
+            word_queue = TreeStack(value=WordNode(None, self.zeros, self.zeros), parent=None, length=1)
             for idx, tag_node in enumerate(tagged_words):
                 # TODO: this makes it so constituents downstream are
                 # build with the outputs of the LSTM, not the word
@@ -327,10 +327,10 @@ class LSTMModel(BaseModel, nn.Module):
         return word_queues
 
     def initial_transitions(self):
-        return TreeStack(value=TransitionNode(None, self.transition_zeros[-1, 0, :], self.transition_zeros, self.transition_zeros))
+        return TreeStack(value=TransitionNode(None, self.transition_zeros[-1, 0, :], self.transition_zeros, self.transition_zeros), parent=None, length=1)
 
     def initial_constituents(self):
-        return TreeStack(value=ConstituentNode(None, self.constituent_zeros[-1, 0, :], self.constituent_zeros, self.constituent_zeros))
+        return TreeStack(value=ConstituentNode(None, self.constituent_zeros[-1, 0, :], self.constituent_zeros, self.constituent_zeros), parent=None, length=1)
 
     def get_top_word(self, word_queue):
         word_node = word_queue.value

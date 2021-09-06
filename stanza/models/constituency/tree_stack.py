@@ -2,7 +2,9 @@
 A utilitiy class for keeping track of intermediate parse states
 """
 
-class TreeStack:
+from collections import namedtuple
+
+class TreeStack(namedtuple('TreeStack', ['value', 'parent', 'length'])):
     """
     A stack which can branch in several directions, as long as you
     keep track of the branching heads
@@ -24,28 +26,17 @@ class TreeStack:
     X+G and X+T.  If we only represent the state X with standard
     python stacks, it would not be possible to track both of these
     states at the same time without copying the entire thing.
-    """
-    def __init__(self, value, parent=None, value_to_str=str):
-        """
-        value could be as transition, a word, or a partially built constituent
-        value_to_str allows for an alternate value -> str for the case
-        of more complicated values, such as values which include lstm tensors
-        """
-        self.value = value
-        # parent == None will represent the end of the stack
-        self.parent = parent
-        self.value_to_str = value_to_str
-        if parent is None:
-            self._len = 1
-        else:
-            self._len = parent._len + 1
 
+    Value can be as transition, a word, or a partially built constituent
+
+    Implemented as a namedtuple to make it a bit more efficient
+    """
     def pop(self):
         return self.parent
 
     def push(self, value):
         # returns a new StackNode which points to this
-        return TreeStack(value, parent=self, value_to_str=self.value_to_str)
+        return TreeStack(value, parent=self, length=self.length+1)
 
     def __iter__(self):
         stack = self
@@ -55,7 +46,7 @@ class TreeStack:
         yield stack.value
 
     def __str__(self):
-        return "TreeStack(%s)" % ", ".join([self.value_to_str(x) for x in self])
+        return "TreeStack(%s)" % ", ".join([str(x) for x in self])
 
     def __len__(self):
-        return self._len
+        return self.length

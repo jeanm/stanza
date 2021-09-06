@@ -146,17 +146,17 @@ class SimpleModel(BaseModel):
     def initial_word_queues(self, tagged_word_lists):
         word_queues = []
         for tagged_words in tagged_word_lists:
-            word_queue = TreeStack(value=None)
+            word_queue = TreeStack(value=None, parent=None, length=1)
             for tag_node in tagged_words:
                 word_queue = word_queue.push(tag_node)
             word_queues.append(word_queue)
         return word_queues
 
     def initial_transitions(self):
-        return TreeStack(value=None)
+        return TreeStack(value=None, parent=None, length=1)
 
     def initial_constituents(self):
-        return TreeStack(value=None)
+        return TreeStack(value=None, parent=None, length=1)
 
     def get_top_word(self, word_queue):
         return word_queue.value

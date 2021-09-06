@@ -12,7 +12,6 @@ import functools
 import logging
 
 from stanza.models.constituency.parse_tree import Tree
-from stanza.models.constituency.tree_stack import TreeStack
 
 logger = logging.getLogger('stanza')
 
