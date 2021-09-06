@@ -151,7 +151,7 @@ def load_pretrain(args):
 
 def load_charlm(charlm_file):
     if charlm_file:
-        logger.info("Loading charlm from %s", charlm_file)
+        logger.debug("Loading charlm from %s", charlm_file)
         return CharacterLanguageModel.load(charlm_file, finetune=False)
     return None
 
