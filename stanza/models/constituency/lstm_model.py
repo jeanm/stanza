@@ -327,9 +327,15 @@ class LSTMModel(BaseModel, nn.Module):
         return word_queues
 
     def initial_transitions(self):
+        """
+        Return an initial TreeStack with no transitions
+        """
         return TreeStack(value=TransitionNode(None, self.transition_zeros[-1, 0, :], self.transition_zeros, self.transition_zeros), parent=None, length=1)
 
     def initial_constituents(self):
+        """
+        Return an initial TreeStack with no constituents
+        """
         return TreeStack(value=ConstituentNode(None, self.constituent_zeros[-1, 0, :], self.constituent_zeros, self.constituent_zeros), parent=None, length=1)
 
     def get_top_word(self, word_queue):
@@ -417,6 +423,11 @@ class LSTMModel(BaseModel, nn.Module):
         return new_stacks
 
     def get_top_constituent(self, constituents):
+        """
+        Extract only the top constituent from a state's constituent
+        sequence, even though it has multiple addition pieces of
+        information
+        """
         constituent_node = constituents.value
         return constituent_node.value
 
@@ -432,6 +443,11 @@ class LSTMModel(BaseModel, nn.Module):
         return new_stacks
 
     def get_top_transition(self, transitions):
+        """
+        Extract only the top transition from a state's transition
+        sequence, even though it has multiple addition pieces of
+        information
+        """
         transition_node = transitions.value
         return transition_node.value
 
