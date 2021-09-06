@@ -23,77 +23,30 @@ class TransitionScheme(Enum):
 
     IN_ORDER           = 4
 
-EMPTY_TREE_STACK = TreeStack(value=None)
-
 UNARY_LIMIT = 4
 
-class State:
+class State(namedtuple('State', ['word_queue', 'transitions', 'constituents', 'gold_tree', 'gold_sequence',
+                                 'sentence_length', 'num_opens'])):
     """
     Represents a partially completed transition parse
 
     Includes stack/buffers for unused words, already executed transitions, and partially build constituents
     At training time, also keeps track of the gold data we are reparsing
+
+    num_opens is useful for tracking
+       1) if the parser is in a stuck state where it is making infinite opens
+       2) if a close transition is impossible because there are no previous opens
+
+    sentence_length tracks how long the sentence is so we abort if we go infinite
+
+    non-stack information such as sentence_length and num_opens
+    will be copied from the original_state if possible, with the
+    exact arguments overriding the values in the original_state
+
+    gold_tree: the original tree, if made from a gold tree.  might be None
+    gold_sequence: the original transition sequence, if available
+    Note that at runtime, gold values will not be available
     """
-    def __init__(self, original_state=None, sentence_length=None, num_opens=None,
-                 word_queue=None, transitions=None, constituents=None, gold_tree=None, gold_sequence=None):
-        """
-        num_opens is useful for tracking
-           1) if the parser is in a stuck state where it is making infinite opens
-           2) if a close transition is impossible because there are no previous opens
-
-        sentence_length tracks how long the sentence is so we abort if we go infinite
-
-        non-stack information such as sentence_length and num_opens
-        will be copied from the original_state if possible, with the
-        exact arguments overriding the values in the original_state
-
-        gold_tree: the original tree, if made from a gold tree.  might be None
-        gold_sequence: the original transition sequence, if available
-        Note that at runtime, gold values will not be available
-        """
-        # first, copy all information from the original_state if it exists
-        if original_state is None:
-            assert not sentence_length is None, "Must provide either an original_state or a sentence_length"
-            assert not num_opens is None, "Must provide either an original_state or num_opens"
-
-            self.word_queue = EMPTY_TREE_STACK
-            self.transitions = EMPTY_TREE_STACK
-            self.constituents = EMPTY_TREE_STACK
-
-            self.gold_tree = None
-            self.gold_sequence = None
-        else:
-            self.sentence_length = original_state.sentence_length
-            self.num_opens = original_state.num_opens
-
-            self.word_queue = original_state.word_queue
-            self.transitions = original_state.transitions
-            self.constituents = original_state.constituents
-
-            self.gold_tree = original_state.gold_tree
-            self.gold_sequence = original_state.gold_sequence
-
-        if word_queue is not None:
-            self.word_queue = word_queue
-
-        if transitions is not None:
-            self.transitions = transitions
-
-        if constituents is not None:
-            self.constituents = constituents
-
-        if num_opens is not None:
-            self.num_opens = num_opens
-
-        if sentence_length is not None:
-            self.sentence_length = sentence_length
-
-        if gold_tree is not None:
-            self.gold_tree = gold_tree
-
-        if gold_sequence is not None:
-            self.gold_sequence = gold_sequence
-
     def empty_word_queue(self):
         # the first element of each stack is a sentinel with no value
         # and no parent
@@ -159,15 +112,19 @@ def initial_state_from_preterminals(preterminal_lists, model, gold_trees):
     what is passed in should be a list of list of preterminals
     """
     word_queues = model.initial_word_queues(preterminal_lists)
-    states = [State(sentence_length=len(preterminal_list),
+    # this is the bottom of the TreeStack and will be the same for each State
+    transitions=model.initial_transitions()
+    constituents=model.initial_constituents()
+    states = [State(sentence_length=len(wq)-1,   # -1 because it ends with a sentinel
                     num_opens=0,
                     word_queue=wq,
-                    transitions=model.initial_transitions(),
-                    constituents=model.initial_constituents())
-              for wq, preterminal_list in zip(word_queues, preterminal_lists)]
-    if gold_trees is not None:
-        for state, gold_tree in zip(states, gold_trees):
-            state.gold_tree = gold_tree
+                    gold_tree=None,
+                    gold_sequence=None,
+                    transitions=transitions,
+                    constituents=constituents)
+              for idx, wq in enumerate(word_queues)]
+    if gold_trees:
+        states = [state._replace(gold_tree=gold_tree) for gold_tree, state in zip(gold_trees, states)]
     return states
 
 def initial_state_from_words(word_lists, model):
@@ -226,11 +183,10 @@ class Transition(ABC):
             new_constituent = callback.build_constituents(model, [new_constituent])[0]
         constituents = model.push_constituents([constituents], [new_constituent])[0]
 
-        return State(original_state=state,
-                     num_opens=state.num_opens + self.delta_opens(),
-                     word_queue=word_queue,
-                     transitions=model.push_transitions([state.transitions], [self])[0],
-                     constituents=constituents)
+        return state._replace(num_opens=state.num_opens + self.delta_opens(),
+                              word_queue=word_queue,
+                              transitions=model.push_transitions([state.transitions], [self])[0],
+                              constituents=constituents)
 
     @abstractmethod
     def is_legal(self, state, model):
@@ -638,11 +594,10 @@ def bulk_apply(model, tree_batch, transitions, fail=False, max_transitions=1000)
     new_transitions = model.push_transitions([tree.transitions for tree in tree_batch], transitions)
     new_constituents = model.push_constituents(constituents, new_constituents)
 
-    tree_batch = [State(original_state=state,
-                        num_opens=state.num_opens + transition.delta_opens(),
-                        word_queue=word_queue,
-                        transitions=transition_stack,
-                        constituents=constituents)
+    tree_batch = [state._replace(num_opens=state.num_opens + transition.delta_opens(),
+                                 word_queue=word_queue,
+                                 transitions=transition_stack,
+                                 constituents=constituents)
                   for (state, transition, word_queue, transition_stack, constituents)
                   in zip(tree_batch, transitions, word_queues, new_transitions, new_constituents)]
 

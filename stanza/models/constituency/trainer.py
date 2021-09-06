@@ -395,7 +395,7 @@ def iterate_training(trainer, train_trees, train_sequences, transitions, dev_tre
             # the batch will be empty when all trees from this epoch are trained
             # now we add the state to the trees in the batch
             initial_states = parse_transitions.initial_state_from_gold_trees([tree for tree, _ in batch], model)
-            batch = [State(original_state=state, gold_sequence=sequence)
+            batch = [state._replace(gold_sequence=sequence)
                      for (tree, sequence), state in zip(batch, initial_states)]
 
             all_errors = []
