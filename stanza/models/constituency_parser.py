@@ -155,6 +155,12 @@ def parse_args(args=None):
     parser.add_argument('--word_dropout', default=0.2, type=float, help='Dropout on the word embedding')
     parser.add_argument('--predict_dropout', default=0.2, type=float, help='Dropout on the final prediction layer')
     # lstm_dropout has not been fully tested yet
+    # one experiment after 200 iterations (after retagging, so scores are lower than some other experiments):
+    # 0.0: 0.9093
+    # 0.1: 0.9094
+    # 0.2: 0.9094
+    # 0.3: 0.9076
+    # 0.4: 0.9077
     parser.add_argument('--lstm_dropout', default=0.0, type=float, help='Dropout on the final prediction layer')
 
     parser.add_argument('--transition_scheme', default=TransitionScheme.TOP_DOWN, type=lambda x: TransitionScheme[x.upper()],
