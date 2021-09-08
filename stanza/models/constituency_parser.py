@@ -144,7 +144,7 @@ def parse_args(args=None):
     parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight decay (eg, l2 reg) to use in the optimizer')
     parser.add_argument('--optim', default='Adadelta', help='Optimizer type: SGD, AdamW, or Adadelta')
 
-    # When using dropout in conjunction with relu, one particular experiment produced the following dev scores after 300 iterations:
+    # When using word_dropout and predict_dropout in conjunction with relu, one particular experiment produced the following dev scores after 300 iterations:
     # 0.0: 0.9085
     # 0.2: 0.9165
     # 0.4: 0.9162
@@ -154,6 +154,8 @@ def parse_args(args=None):
     # No attempt has been made to test the different dropouts separately...
     parser.add_argument('--word_dropout', default=0.2, type=float, help='Dropout on the word embedding')
     parser.add_argument('--predict_dropout', default=0.2, type=float, help='Dropout on the final prediction layer')
+    # lstm_dropout has not been fully tested yet
+    parser.add_argument('--lstm_dropout', default=0.0, type=float, help='Dropout on the final prediction layer')
 
     parser.add_argument('--transition_scheme', default=TransitionScheme.TOP_DOWN, type=lambda x: TransitionScheme[x.upper()],
                         help='Transition scheme to use.  {}'.format(", ".join(x.name for x in TransitionScheme)))

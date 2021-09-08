@@ -129,21 +129,22 @@ class LSTMModel(BaseModel, nn.Module):
                                                  embedding_dim = self.transition_embedding_dim)
 
         self.num_layers = args['num_lstm_layers']
+        self.lstm_dropout_ratio = self.args.get('lstm_dropout', 0.0)
 
         # also register a buffer of zeros so that we can always get zeros on the appropriate device
         self.register_buffer('zeros', torch.zeros(self.hidden_size))
         self.register_buffer('transition_zeros', torch.zeros(self.num_layers, 1, self.transition_hidden_size))
         self.register_buffer('constituent_zeros', torch.zeros(self.num_layers, 1, self.hidden_size))
 
-        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True)
+        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
         # after putting the word_delta_tag input through the word_lstm, we get back
         # hidden_size * 2 output with the front and back lstms concatenated.
         # this transforms it into hidden_size with the values mixed together
         self.word_to_constituent = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
-        self.transition_lstm = nn.LSTM(input_size=self.transition_embedding_dim, hidden_size=self.transition_hidden_size, num_layers=self.num_layers)
+        self.transition_lstm = nn.LSTM(input_size=self.transition_embedding_dim, hidden_size=self.transition_hidden_size, num_layers=self.num_layers, dropout=self.lstm_dropout_ratio)
         # input_size is hidden_size - could introduce a new constituent_size instead if we liked
-        self.constituent_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers)
+        self.constituent_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.lstm_dropout_ratio)
 
         self._transition_scheme = args['transition_scheme']
         if self._transition_scheme is TransitionScheme.TOP_DOWN_UNARY:
@@ -166,7 +167,7 @@ class LSTMModel(BaseModel, nn.Module):
         # forward and backward pieces for crunching several
         # constituents into one, combined into a bi-lstm
         # TODO: make the hidden size here an option?
-        self.constituent_reduce_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True)
+        self.constituent_reduce_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
         # affine transformation from bi-lstm reduce to a new hidden layer
         self.reduce_linear = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
