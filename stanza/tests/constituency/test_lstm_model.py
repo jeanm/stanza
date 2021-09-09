@@ -179,6 +179,16 @@ def test_forward_con_lstm(pt):
     model = build_model(pt, '--num_lstm_layers', '2', '--constituency_lstm')
     run_forward_checks(model)
 
+def test_forward_sentence_boundaries(pt):
+    """
+    Test start & stop boundary vectors
+    """
+    model = build_model(pt, '--sentence_boundary_vectors')
+    run_forward_checks(model)
+
+    model = build_model(pt, '--no_sentence_boundary_vectors')
+    run_forward_checks(model)
+
 def test_save_load_model(pt, unary_model):
     """
     Just tests that saving and loading works without crashs.
