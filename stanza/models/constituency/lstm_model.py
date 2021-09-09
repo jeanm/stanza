@@ -136,6 +136,12 @@ class LSTMModel(BaseModel, nn.Module):
         self.register_buffer('transition_zeros', torch.zeros(self.num_layers, 1, self.transition_hidden_size))
         self.register_buffer('constituent_zeros', torch.zeros(self.num_layers, 1, self.hidden_size))
 
+        # possibly add a couple vectors for bookends of the sentence
+        self.sentence_boundary_vectors = self.args.get('sentence_boundary_vectors', False)
+        if self.sentence_boundary_vectors:
+            self.register_parameter('word_start', torch.nn.Parameter(torch.randn(self.word_input_size, requires_grad=True)))
+            self.register_parameter('word_end', torch.nn.Parameter(torch.randn(self.word_input_size, requires_grad=True)))
+
         self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
         # after putting the word_delta_tag input through the word_lstm, we get back
         # hidden_size * 2 output with the front and back lstms concatenated.
@@ -293,16 +299,29 @@ class LSTMModel(BaseModel, nn.Module):
             for word_inputs, backward_chars in zip(all_word_inputs, all_backward_chars):
                 word_inputs.append(backward_chars)
 
-        word_lstm_input = torch.zeros((max(len(x) for x in tagged_word_lists), len(tagged_word_lists), self.word_input_size), device=device)
+        max_sentence_len = max(len(x) for x in tagged_word_lists)
+        if self.sentence_boundary_vectors:
+            max_sentence_len += 2
+        word_lstm_input = torch.zeros((max_sentence_len, len(tagged_word_lists), self.word_input_size), device=device)
 
         for sentence_idx, word_inputs in enumerate(all_word_inputs):
             # now of size sentence x input
             word_input = torch.cat(word_inputs, dim=1)
             word_input = self.word_dropout(word_input)
 
-            word_lstm_input[:word_input.shape[0], sentence_idx, :] = word_input
+            if self.sentence_boundary_vectors:
+                # TODO: we're still doing everything backwards
+                word_lstm_input[0, sentence_idx, :] = self.word_end
+                word_lstm_input[1:word_input.shape[0]+1, sentence_idx, :] = word_input
+                word_lstm_input[word_input.shape[0]+1, sentence_idx, :] = self.word_start
+            else:
+                word_lstm_input[:word_input.shape[0], sentence_idx, :] = word_input
 
-        packed_word_input = torch.nn.utils.rnn.pack_padded_sequence(word_lstm_input, [len(x) for x in tagged_word_lists], enforce_sorted=False)
+        if self.sentence_boundary_vectors:
+            seqlens = [len(x)+2 for x in tagged_word_lists]
+        else:
+            seqlens = [len(x) for x in tagged_word_lists]
+        packed_word_input = torch.nn.utils.rnn.pack_padded_sequence(word_lstm_input, seqlens, enforce_sorted=False)
         word_output, _ = self.word_lstm(packed_word_input)
         # would like to do word_to_constituent here, but it seems PackedSequence doesn't support Linear
         # word_output will now be sentence x batch x 2*hidden_size
@@ -311,7 +330,10 @@ class LSTMModel(BaseModel, nn.Module):
 
         word_queues = []
         for sentence_idx, tagged_words in enumerate(tagged_word_lists):
-            sentence_output = word_output[:len(tagged_words), sentence_idx, :]
+            if self.sentence_boundary_vectors:
+                sentence_output = word_output[:len(tagged_words)+1, sentence_idx, :]
+            else:
+                sentence_output = word_output[:len(tagged_words), sentence_idx, :]
             sentence_output = self.word_to_constituent(sentence_output)
             sentence_output = self.nonlinearity(sentence_output)
             # TODO: this makes it so constituents downstream are
@@ -319,10 +341,16 @@ class LSTMModel(BaseModel, nn.Module):
             # embeddings themselves.  It is possible we want to
             # transform the word_input to hidden_size in some way
             # and use that instead
-            word_queue = [WordNode(tag_node, sentence_output[idx, :])
-                          for idx, tag_node in enumerate(tagged_words)]
-            word_queue.reverse()
-            word_queue.append(WordNode(None, self.zeros))
+            if self.sentence_boundary_vectors:
+                word_queue = [WordNode(tag_node, sentence_output[idx+1, :])
+                              for idx, tag_node in enumerate(tagged_words)]
+                word_queue.reverse()
+                word_queue.append(WordNode(None, sentence_output[0, :]))
+            else:
+                word_queue = [WordNode(tag_node, sentence_output[idx, :])
+                              for idx, tag_node in enumerate(tagged_words)]
+                word_queue.reverse()
+                word_queue.append(WordNode(None, self.zeros))
 
             word_queues.append(word_queue)
 
