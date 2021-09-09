@@ -51,9 +51,9 @@ class BaseModel(ABC):
         """
 
     @abstractmethod
-    def get_top_word(self, word_queue):
+    def get_word(self, word_node):
         """
-        Get the next word of the word buffer
+        Get the word corresponding to this position in the word queue
         """
 
     @abstractmethod
@@ -146,9 +146,9 @@ class SimpleModel(BaseModel):
     def initial_word_queues(self, tagged_word_lists):
         word_queues = []
         for tagged_words in tagged_word_lists:
-            word_queue = TreeStack(value=None, parent=None, length=1)
-            for tag_node in tagged_words:
-                word_queue = word_queue.push(tag_node)
+            word_queue = [tag_node for tag_node in tagged_words]
+            word_queue.reverse()
+            word_queue.append(None)
             word_queues.append(word_queue)
         return word_queues
 
@@ -158,11 +158,11 @@ class SimpleModel(BaseModel):
     def initial_constituents(self):
         return TreeStack(value=None, parent=None, length=1)
 
-    def get_top_word(self, word_queue):
-        return word_queue.value
+    def get_word(self, word_node):
+        return word_node
 
     def transform_word_to_constituent(self, state):
-        return state.word_queue.value
+        return state.word_queue[state.word_position]
 
     def dummy_constituent(self, dummy):
         return dummy

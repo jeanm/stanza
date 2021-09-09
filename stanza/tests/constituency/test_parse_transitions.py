@@ -30,6 +30,7 @@ def test_initial_state(model=None):
     assert len(state.word_queue) == 4
     assert len(state.constituents) == 1
     assert len(state.transitions) == 1
+    assert state.word_position == 0
 
 def test_shift(model=None):
     if model is None:
@@ -42,25 +43,33 @@ def test_shift(model=None):
     state = open_transition.apply(state, model)
     shift = parse_transitions.Shift()
     assert shift.is_legal(state, model)
+    assert len(state.word_queue) == 4
+    assert state.word_position == 0
 
     state = shift.apply(state, model)
-    assert len(state.word_queue) == 3
+    assert len(state.word_queue) == 4
     # 4 because of the dummy created by the opens
     assert len(state.constituents) == 4
     assert len(state.transitions) == 4
     assert shift.is_legal(state, model)
+    assert state.word_position == 1
+    assert not state.empty_word_queue()
 
     state = shift.apply(state, model)
-    assert len(state.word_queue) == 2
+    assert len(state.word_queue) == 4
     assert len(state.constituents) == 5
     assert len(state.transitions) == 5
     assert shift.is_legal(state, model)
+    assert state.word_position == 2
+    assert not state.empty_word_queue()
 
     state = shift.apply(state, model)
-    assert len(state.word_queue) == 1
+    assert len(state.word_queue) == 4
     assert len(state.constituents) == 6
     assert len(state.transitions) == 6
     assert not shift.is_legal(state, model)
+    assert state.word_position == 3
+    assert state.empty_word_queue()
 
     constituents = state.constituents
     assert model.get_top_constituent(constituents).children[0].label == 'Opal'

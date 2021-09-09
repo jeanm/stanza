@@ -25,7 +25,7 @@ from stanza.models.constituency.tree_stack import TreeStack
 
 logger = logging.getLogger('stanza')
 
-WordNode = namedtuple("WordNode", ['value', 'embedding', 'hx'])
+WordNode = namedtuple("WordNode", ['value', 'hx'])
 TransitionNode = namedtuple("TransitionNode", ['value', 'output', 'hx', 'cx'])
 
 # Invariant: the output at the top of the constituency stack will have a
@@ -314,14 +314,15 @@ class LSTMModel(BaseModel, nn.Module):
             sentence_output = word_output[:len(tagged_words), sentence_idx, :]
             sentence_output = self.word_to_constituent(sentence_output)
             sentence_output = self.nonlinearity(sentence_output)
-            word_queue = TreeStack(value=WordNode(None, self.zeros, self.zeros), parent=None, length=1)
-            for idx, tag_node in enumerate(tagged_words):
-                # TODO: this makes it so constituents downstream are
-                # build with the outputs of the LSTM, not the word
-                # embeddings themselves.  It is possible we want to
-                # transform the word_input to hidden_size in some way
-                # and use that instead
-                word_queue = word_queue.push(WordNode(tag_node, embedding=sentence_output[idx, :], hx=sentence_output[idx, :]))
+            # TODO: this makes it so constituents downstream are
+            # build with the outputs of the LSTM, not the word
+            # embeddings themselves.  It is possible we want to
+            # transform the word_input to hidden_size in some way
+            # and use that instead
+            word_queue = [WordNode(tag_node, sentence_output[idx, :])
+                          for idx, tag_node in enumerate(tagged_words)]
+            word_queue.reverse()
+            word_queue.append(WordNode(None, self.zeros))
 
             word_queues.append(word_queue)
 
@@ -339,17 +340,13 @@ class LSTMModel(BaseModel, nn.Module):
         """
         return TreeStack(value=ConstituentNode(None, self.constituent_zeros[-1, 0, :], self.constituent_zeros, self.constituent_zeros), parent=None, length=1)
 
-    def get_top_word(self, word_queue):
-        word_node = word_queue.value
+    def get_word(self, word_node):
         return word_node.value
 
     def transform_word_to_constituent(self, state):
-        word_node = state.word_queue.value
+        word_node = state.word_queue[state.word_position]
         word = word_node.value
-        if self.constituency_lstm:
-            return Constituent(value=word, hx=word_node.hx)
-        else:
-            return Constituent(value=word, hx=word_node.embedding)
+        return Constituent(value=word, hx=word_node.hx)
 
     def dummy_constituent(self, dummy):
         label = dummy.label
@@ -468,7 +465,7 @@ class LSTMModel(BaseModel, nn.Module):
         We've basically done all the work analyzing the state as
         part of applying the transitions, so this method is very simple
         """
-        word_hx = torch.stack([state.word_queue.value.hx for state in states])
+        word_hx = torch.stack([state.word_queue[state.word_position].hx for state in states])
         transition_hx = torch.stack([state.transitions.value.output for state in states])
         # note that we use hx instead of output from the constituents
         # this way, we can, as an option, NOT include the constituents to the left
