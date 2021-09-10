@@ -16,6 +16,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from stanza.models.common.data import get_long_tensor
+from stanza.models.common.hlstm import HighwayLSTM
 from stanza.models.common.utils import unsort
 from stanza.models.common.vocab import PAD_ID, UNK_ID
 from stanza.models.constituency.base_model import BaseModel
@@ -142,7 +143,11 @@ class LSTMModel(BaseModel, nn.Module):
             self.register_parameter('word_start', torch.nn.Parameter(torch.randn(self.word_input_size, requires_grad=True)))
             self.register_parameter('word_end', torch.nn.Parameter(torch.randn(self.word_input_size, requires_grad=True)))
 
-        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
+        self.highway_lstm = self.args.get('highway_lstm', False)
+        if self.highway_lstm:
+            self.word_lstm = HighwayLSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
+        else:
+            self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
         # after putting the word_delta_tag input through the word_lstm, we get back
         # hidden_size * 2 output with the front and back lstms concatenated.
         # this transforms it into hidden_size with the values mixed together
@@ -299,9 +304,11 @@ class LSTMModel(BaseModel, nn.Module):
             for word_inputs, backward_chars in zip(all_word_inputs, all_backward_chars):
                 word_inputs.append(backward_chars)
 
-        max_sentence_len = max(len(x) for x in tagged_word_lists)
         if self.sentence_boundary_vectors:
-            max_sentence_len += 2
+            seqlens = [len(x) + 2 for x in tagged_word_lists]
+        else:
+            seqlens = [len(x) for x in tagged_word_lists]
+        max_sentence_len = max(seqlens)
 
         all_word_inputs = [torch.cat(word_inputs, dim=1) for word_inputs in all_word_inputs]
         if self.sentence_boundary_vectors:
@@ -311,7 +318,10 @@ class LSTMModel(BaseModel, nn.Module):
         all_word_inputs = [self.word_dropout(word_inputs) for word_inputs in all_word_inputs]
 
         packed_word_input = torch.nn.utils.rnn.pack_sequence(all_word_inputs, enforce_sorted=False)
-        word_output, _ = self.word_lstm(packed_word_input)
+        if self.highway_lstm:
+            word_output, _ = self.word_lstm(packed_word_input, seqlens)
+        else:
+            word_output, _ = self.word_lstm(packed_word_input)
         # would like to do word_to_constituent here, but it seems PackedSequence doesn't support Linear
         # word_output will now be sentence x batch x 2*hidden_size
         word_output, word_output_lens = torch.nn.utils.rnn.pad_packed_sequence(word_output)

@@ -185,6 +185,9 @@ def parse_args(args=None):
     parser.add_argument('--sentence_boundary_vectors', action='store_true', help='Train vectors for the boundaries of a sentence')
     parser.add_argument('--no_sentence_boundary_vectors', action='store_false', dest='sentence_boundary_vectors', help="Don't train vectors for the boundaries of a sentence")
 
+    parser.add_argument('--highway_lstm', action='store_true', help='Use a highway LSTM for the word vectors')
+    parser.add_argument('--no_highway_lstm', action='store_false', dest='highway_lstm', help="Don't use a highway LSTM for the word vectors")
+
     # TODO: add the ability to keep training in a different direction
     # after making an error, eg, add an oracle
     parser.add_argument('--train_method', default='gold_entire', choices=['gold_entire'], help='Different training methods to use')
