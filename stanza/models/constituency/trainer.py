@@ -205,7 +205,7 @@ def evaluate(args, model_file, retag_pipeline):
         treebank = retag_trees(treebank, retag_pipeline, args['retag_xpos'])
         logger.info("Retagging finished")
 
-    f1 = run_dev_set(trainer.model, treebank, args['eval_batch_size'], args['eval_file'])
+    f1 = run_dev_set(trainer.model, treebank, args)
     logger.info("F1 score on %s: %f", args['eval_file'], f1)
 
 def build_treebank(trees, transition_scheme):
@@ -433,7 +433,7 @@ def iterate_training(trainer, train_trees, train_sequences, transitions, dev_tre
             optimizer.zero_grad()
 
         # print statistics
-        f1 = run_dev_set(model, dev_trees, args['eval_batch_size'], args['eval_file'])
+        f1 = run_dev_set(model, dev_trees, args)
         if f1 > best_f1:
             logger.info("New best dev score: %.5f > %.5f", f1, best_f1)
             best_f1 = f1
@@ -535,20 +535,39 @@ def parse_tagged_words(model, words, batch_size):
     results = [t[1][0][0] for t in treebank]
     return results
 
-def run_dev_set(model, dev_trees, batch_size, filename):
+def run_dev_set(model, dev_trees, args):
     """
     This reparses a treebank and executes the CoreNLP Java EvalB code.
 
     It only works if CoreNLP 4.3.0 or higher is in the classpath.
     """
-    logger.info("Processing %d trees from %s", len(dev_trees), filename)
+    logger.info("Processing %d trees from %s", len(dev_trees), args['eval_file'])
     model.eval()
 
     tree_iterator = iter(tqdm(dev_trees))
-    treebank = parse_sentences(tree_iterator, build_batch_from_trees, batch_size, model)
+    treebank = parse_sentences(tree_iterator, build_batch_from_trees, args['eval_batch_size'], model)
 
     if len(treebank) < len(dev_trees):
         logger.warning("Only evaluating %d trees instead of %d", len(treebank), len(dev_trees))
+
+    if args['mode'] == 'predict' and args['predict_file']:
+        utils.ensure_dir(args['predict_dir'], verbose=False)
+        pred_file = os.path.join(args['predict_dir'], args['predict_file'] + ".pred.mrg")
+        orig_file = os.path.join(args['predict_dir'], args['predict_file'] + ".orig.mrg")
+        if os.path.exists(pred_file):
+            logger.warning("Cowardly refusing to overwrite {}".format(pred_file))
+        elif os.path.exists(orig_file):
+            logger.warning("Cowardly refusing to overwrite {}".format(orig_file))
+        else:
+            with open(pred_file, 'w') as fout:
+                for tree in treebank:
+                    fout.write(str(tree[1][0][0]))
+                    fout.write("\n")
+
+            with open(orig_file, 'w') as fout:
+                for tree in treebank:
+                    fout.write(str(tree[0]))
+                    fout.write("\n")
 
     with EvaluateParser(classpath="$CLASSPATH") as evaluator:
         response = evaluator.process(treebank)
