@@ -183,7 +183,7 @@ class LSTMModel(BaseModel, nn.Module):
 
         self.word_dropout = nn.Dropout(self.args['word_dropout'])
         self.predict_dropout = nn.Dropout(self.args['predict_dropout'])
-        self.lstm_input_dropout = nn.Dropout(self.args.get('lstm_input_ dropout', 0.0))
+        self.lstm_input_dropout = nn.Dropout(self.args.get('lstm_input_dropout', 0.0))
 
         # matrix for predicting the next transition using word/constituent/transition queues
         # word size + constituency size + transition size
