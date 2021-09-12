@@ -129,22 +129,23 @@ class LSTMModel(BaseModel, nn.Module):
                                                  embedding_dim = self.transition_embedding_dim)
 
         self.num_layers = args['num_lstm_layers']
-        self.lstm_dropout_ratio = self.args.get('lstm_dropout', 0.0)
+        self.lstm_layer_dropout = self.args.get('lstm_layer_dropout', 0.0)
 
         # also register a buffer of zeros so that we can always get zeros on the appropriate device
         self.register_buffer('zeros', torch.zeros(self.hidden_size))
         self.register_buffer('transition_zeros', torch.zeros(self.num_layers, 1, self.transition_hidden_size))
         self.register_buffer('constituent_zeros', torch.zeros(self.num_layers, 1, self.hidden_size))
 
-        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
+        self.word_lstm = nn.LSTM(input_size=self.word_input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_layer_dropout)
+
         # after putting the word_delta_tag input through the word_lstm, we get back
         # hidden_size * 2 output with the front and back lstms concatenated.
         # this transforms it into hidden_size with the values mixed together
         self.word_to_constituent = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
-        self.transition_lstm = nn.LSTM(input_size=self.transition_embedding_dim, hidden_size=self.transition_hidden_size, num_layers=self.num_layers, dropout=self.lstm_dropout_ratio)
+        self.transition_lstm = nn.LSTM(input_size=self.transition_embedding_dim, hidden_size=self.transition_hidden_size, num_layers=self.num_layers, dropout=self.lstm_layer_dropout)
         # input_size is hidden_size - could introduce a new constituent_size instead if we liked
-        self.constituent_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.lstm_dropout_ratio)
+        self.constituent_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.lstm_layer_dropout)
 
         self._transition_scheme = args['transition_scheme']
         if self._transition_scheme is TransitionScheme.TOP_DOWN_UNARY:
@@ -167,7 +168,7 @@ class LSTMModel(BaseModel, nn.Module):
         # forward and backward pieces for crunching several
         # constituents into one, combined into a bi-lstm
         # TODO: make the hidden size here an option?
-        self.constituent_reduce_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_dropout_ratio)
+        self.constituent_reduce_lstm = nn.LSTM(input_size=self.hidden_size, hidden_size=self.hidden_size, num_layers=self.num_layers, bidirectional=True, dropout=self.lstm_layer_dropout)
         # affine transformation from bi-lstm reduce to a new hidden layer
         self.reduce_linear = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
@@ -182,6 +183,7 @@ class LSTMModel(BaseModel, nn.Module):
 
         self.word_dropout = nn.Dropout(self.args['word_dropout'])
         self.predict_dropout = nn.Dropout(self.args['predict_dropout'])
+        self.lstm_input_dropout = nn.Dropout(self.args.get('lstm_input_ dropout', 0.0))
 
         # matrix for predicting the next transition using word/constituent/transition queues
         # word size + constituency size + transition size
@@ -374,7 +376,7 @@ class LSTMModel(BaseModel, nn.Module):
         node_hx = [[child.output for child in children] for children in children_lists]
         # weirdly, this is faster than using pack_sequence
         unpacked_hx = [[lhx] + nhx + [lhx] + [zeros] * (max_length - len(nhx)) for lhx, nhx in zip(label_hx, node_hx)]
-        unpacked_hx = [torch.stack(nhx) for nhx in unpacked_hx]
+        unpacked_hx = [self.lstm_input_dropout(torch.stack(nhx)) for nhx in unpacked_hx]
         packed_hx = torch.stack(unpacked_hx, axis=1)
         packed_hx = torch.nn.utils.rnn.pack_padded_sequence(packed_hx, [len(x)+2 for x in children_lists], enforce_sorted=False)
         lstm_output = self.constituent_reduce_lstm(packed_hx)
@@ -408,6 +410,7 @@ class LSTMModel(BaseModel, nn.Module):
 
         constituent_input = torch.stack([x.hx for x in constituents])
         constituent_input = constituent_input.unsqueeze(0)
+        constituent_input = self.lstm_input_dropout(constituent_input)
 
         hx = torch.cat([current_node.hx for current_node in current_nodes], axis=1)
         cx = torch.cat([current_node.cx for current_node in current_nodes], axis=1)
@@ -432,6 +435,7 @@ class LSTMModel(BaseModel, nn.Module):
     def push_transitions(self, transition_stacks, transitions):
         transition_idx = torch.stack([self.transition_tensors[self.transition_map[transition]] for transition in transitions])
         transition_input = self.transition_embedding(transition_idx).unsqueeze(0)
+        transition_input = self.lstm_input_dropout(transition_input)
 
         hx = torch.cat([t.value.hx for t in transition_stacks], axis=1)
         cx = torch.cat([t.value.cx for t in transition_stacks], axis=1)

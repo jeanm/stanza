@@ -163,7 +163,9 @@ def parse_args(args=None):
     # 0.2: 0.9094
     # 0.3: 0.9076
     # 0.4: 0.9077
-    parser.add_argument('--lstm_dropout', default=0.0, type=float, help='Dropout on the final prediction layer')
+    parser.add_argument('--lstm_layer_dropout', default=0.0, type=float, help='Dropout in the LSTM layers')
+    # TODO: not experimentally tested yet
+    parser.add_argument('--lstm_input_dropout', default=0.0, type=float, help='Dropout on the input to an LSTM')
 
     parser.add_argument('--transition_scheme', default=TransitionScheme.TOP_DOWN, type=lambda x: TransitionScheme[x.upper()],
                         help='Transition scheme to use.  {}'.format(", ".join(x.name for x in TransitionScheme)))
