@@ -68,6 +68,7 @@ lcode2lang = {
     "kpv": "Komi_Zyrian",
     "ko": "Korean",
     "kmr": "Kurmanji",
+    "lij": "Ligurian",
     "lt": "Lithuanian",
     "olo": "Livvi",
     "la": "Latin",
