@@ -8,10 +8,10 @@ for corpus in ${CORPORA}; do
     python -m stanza.utils.datasets.prepare_lemma_treebank ${corpus}
 
     python -m stanza.utils.training.run_tokenizer ${corpus} --steps=1000
-    python -m stanza.utils.training.run_mwt ${corpus} --max_steps_before_stop=200 --word_emb_dim=50
-    python -m stanza.utils.training.run_pos ${corpus} --wordvec_pretrain_file=/content/gdrive/MyDrive/ud/stanza/saved_models/pos/lij.pretrain.pt
+    python -m stanza.utils.training.run_mwt ${corpus}
+    python -m stanza.utils.training.run_pos ${corpus} --wordvec_pretrain_file=/content/gdrive/MyDrive/ud/stanza/saved_models/pos/lij.pretrain.pt --max_steps_before_stop=200 --word_emb_dim=50
     python -m stanza.utils.training.run_lemma ${corpus}
 
     python -m stanza.utils.datasets.prepare_depparse_treebank ${corpus}
-    python -m stanza.utils.training.run_depparse ${corpus}
+    python -m stanza.utils.training.run_depparse ${corpus} --wordvec_pretrain_file=/content/gdrive/MyDrive/ud/stanza/saved_models/pos/lij.pretrain.pt --max_steps_before_stop=200 --word_emb_dim=50 
 done
