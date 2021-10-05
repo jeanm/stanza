@@ -146,7 +146,7 @@ def convert_conllu_to_txt(tokenizer_dir, short_name):
         output_txt = f"{tokenizer_dir}/{short_name}.{dataset}.txt"
 
         # use an external script to produce the txt files
-        subprocess.check_output(f"perl {CONLLU_TO_TXT_PERL} {output_conllu} > {output_txt}", shell=True)
+        subprocess.check_output(f"perl \"{CONLLU_TO_TXT_PERL}\" \"{output_conllu}\" > \"{output_txt}\"", shell=True)
 
 
 # RE to see if the index of a conllu line represents an MWT
