@@ -5,7 +5,7 @@
 # Set UDBASE to the location of UD data folder
 # The data should be CoNLL-U format
 # For details, see http://universaldependencies.org/conll18/data.html (CoNLL-18 UD data)
-export UDBASE=/Users/jean/Projects/UD_Ligurian-GLT/corpora
+export UDBASE=/content/gdrive/MyDrive/ud/stanza/corpora
 
 # Set NERBASE to the location of NER data folder
 # The data should be BIO format
@@ -13,7 +13,7 @@ export UDBASE=/Users/jean/Projects/UD_Ligurian-GLT/corpora
 # export NERBASE=/path/to/NER
 
 # Set directories to store processed training/evaluation files
-export DATA_ROOT=/Users/jean/Projects/stanza/data
+export DATA_ROOT=/content/gdrive/MyDrive/ud/stanza/data
 export TOKENIZE_DATA_DIR=$DATA_ROOT/tokenize
 export MWT_DATA_DIR=$DATA_ROOT/mwt
 export LEMMA_DATA_DIR=$DATA_ROOT/lemma
